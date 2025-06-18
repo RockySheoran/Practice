@@ -1,12 +1,10 @@
-version: "3.8"
-
 services:
   main_microservice:
-    build: ./src
+    build: ./Main_microservice
     ports:
       - "5000:5000"
     environment:
-      - ENV=development
+      ENV: development
     volumes:
       - .:/app
     networks:
@@ -22,8 +20,8 @@ services:
     volumes:
       - mongodb_data:/data/db
     environment:
-      - MONGO_INITDB_ROOT_USERNAME=root
-      - MONGO_INITDB_ROOT_PASSWORD=example
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
     networks:
       - app-network
 

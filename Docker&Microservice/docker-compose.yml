@@ -5,8 +5,12 @@ services:
     build: ./Main_microservice
     ports:
       - "5000:3000"
+
     environment:
-      ENV: development
+      - ENV: development
+      - PORT=3000
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}  # Uses .env value or defaults
+      - NODE_ENV=production
     volumes:
       - ./Main_microservice:/app  # Changed to be service-specific
     networks:

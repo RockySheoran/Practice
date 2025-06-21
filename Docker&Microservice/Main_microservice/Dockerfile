@@ -22,13 +22,13 @@ RUN npm ci --only=production
 # Copy built application
 COPY --from=builder /build/src ./src
 
-# Add this line to ensure ES modules work
+# Environment variables configuration
 ENV NODE_OPTIONS="--experimental-modules --es-module-specifier-resolution=node"
+ENV PORT=3000
+ENV FRONTEND_URL=http://localhost:3000
 
-EXPOSE 3000
+EXPOSE $PORT
 CMD ["node", "src/index.js"]
-
-
 
 
 

@@ -1,23 +1,33 @@
-#  use the image anywhere
-#  in the project to build the image
+# Stage 1: Builder - install dependencies and build
+FROM node:16-alpine AS builder
+WORKDIR /build
 
-FROM node:16-alpine
-
-# Set the working directory
-WORKDIR /src
-
-# Copy package.json and package-lock.json
+# Copy only what's needed for dependencies
 COPY package.json package-lock.json ./
 
+# Install exact versions and clean cache immediately
+RUN npm ci --omit=dev && \
+    npm cache clean --force
 
-# Install dependencies
-RUN npm install
-
-# Copy the rest of the application code
+# Copy and build application
 COPY . .
-# Expose the port the app runs on
+# RUN npm run build  # Uncomment if you have a build step
+
+# Stage 2: Minimal runtime
+FROM alpine:3.16
+WORKDIR /app
+
+# Install only Node.js runtime (no npm)
+RUN apk add --no-cache nodejs
+
+# Copy production files from builder
+COPY --from=builder /build/node_modules ./node_modules
+COPY --from=builder /build/src ./src
+# COPY --from=builder /build/dist ./dist  # For built applications
+
+# Create non-root user
+RUN adduser -D appuser && chown -R appuser /app
+USER appuser
+
 EXPOSE 3000
-
-
-# Start the application
-CMD ["node", "src/index.js"]  
+CMD ["node", "src/index.js"]

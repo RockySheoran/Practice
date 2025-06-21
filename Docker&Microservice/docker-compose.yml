@@ -2,7 +2,7 @@ services:
   main_microservice:
     build: ./Main_microservice
     ports:
-      - "5000:5000"
+      - "5000:3000"
     environment:
       ENV: development
     volumes:
@@ -15,7 +15,7 @@ services:
   2_microservice:
     build: ./2_microservice
     ports:
-      - "5001:5000"
+      - "5001:3001"
     environment:
       ENV: development
     volumes:
@@ -28,7 +28,7 @@ services:
   3_microservice:
     build: ./3_microservice
     ports:
-      - "5002:5000"
+      - "5002:3002"
     environment:
       ENV: development
     volumes:

@@ -27,3 +27,55 @@ ENV NODE_OPTIONS="--experimental-modules --es-module-specifier-resolution=node"
 
 EXPOSE 3000
 CMD ["node", "src/index.js"]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+
+
+# # Stage 1: Builder (install & build)
+# FROM node:20-alpine AS builder
+
+# WORKDIR /app
+
+# # Install only production dependencies first for better caching
+# COPY package*.json ./
+# RUN npm install --production
+
+# # Copy app source code and build (if needed)
+# COPY . .
+
+# # If you have a build step (e.g., TypeScript or frontend build), uncomment:
+# # RUN npm run build
+
+# # Stage 2: Production (lightweight image)
+# FROM node:20-alpine
+
+# WORKDIR /app
+
+# # Copy only required output
+# COPY --from=builder /app ./
+
+# EXPOSE 3000
+
+# CMD ["node", "src/index.js"]  
+# # or "dist/index.js" if compiled

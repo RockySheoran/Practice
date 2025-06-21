@@ -1,33 +1,29 @@
-# Stage 1: Builder - install dependencies and build
-FROM node:16-alpine AS builder
+# Stage 1: Builder stage
+FROM node:16 AS builder
 WORKDIR /build
 
-# Copy only what's needed for dependencies
+# Copy package files
 COPY package.json package-lock.json ./
 
-# Install exact versions and clean cache immediately
-RUN npm ci --omit=dev && \
-    npm cache clean --force
+# Install dependencies
+RUN npm ci
 
-# Copy and build application
+# Copy source files
 COPY . .
-# RUN npm run build  # Uncomment if you have a build step
 
-# Stage 2: Minimal runtime
-FROM alpine:3.16
+# Stage 2: Production stage
+FROM node:16-alpine
 WORKDIR /app
 
-# Install only Node.js runtime (no npm)
-RUN apk add --no-cache nodejs
+# Copy production dependencies
+COPY --from=builder /build/package.json /build/package-lock.json ./
+RUN npm ci --only=production
 
-# Copy production files from builder
-COPY --from=builder /build/node_modules ./node_modules
+# Copy built application
 COPY --from=builder /build/src ./src
-# COPY --from=builder /build/dist ./dist  # For built applications
 
-# Create non-root user
-RUN adduser -D appuser && chown -R appuser /app
-USER appuser
+# Add this line to ensure ES modules work
+ENV NODE_OPTIONS="--experimental-modules --es-module-specifier-resolution=node"
 
 EXPOSE 3000
 CMD ["node", "src/index.js"]

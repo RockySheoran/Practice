@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   main_microservice:
     build: ./Main_microservice
@@ -6,12 +8,13 @@ services:
     environment:
       ENV: development
     volumes:
-      - .:/app
+      - ./Main_microservice:/app  # Changed to be service-specific
     networks:
       - app-network
     depends_on:
       - mongo
     restart: unless-stopped
+
   2_microservice:
     build: ./2_microservice
     ports:
@@ -19,12 +22,13 @@ services:
     environment:
       ENV: development
     volumes:
-      - .:/app
+      - ./2_microservice:/app  # Changed to be service-specific
     networks:
       - app-network
     depends_on:
       - mongo
     restart: unless-stopped
+
   3_microservice:
     build: ./3_microservice
     ports:
@@ -32,28 +36,28 @@ services:
     environment:
       ENV: development
     volumes:
-      - .:/app
+      - ./3_microservice:/app  # Changed to be service-specific
     networks:
       - app-network
     depends_on:
       - mongo
     restart: unless-stopped
 
-  # mongo:
-  #   image: mongo:5.0
-  #   ports:
-  #     - "27017:27017"
-  #   volumes:
-  #     - mongodb_data:/data/db
-  #   environment:
-  #     MONGO_INITDB_ROOT_USERNAME: root
-  #     MONGO_INITDB_ROOT_PASSWORD: example
-  #   networks:
-  #     - app-network
-
-# volumes:
-#   mongodb_data:
+  mongo:
+    image: mongo:5.0
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    networks:
+      - app-network
 
 networks:
   app-network:
     driver: bridge
+
+volumes:  # Added this section to define named volumes
+  mongodb_data:

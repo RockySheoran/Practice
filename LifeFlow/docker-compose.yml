@@ -1,0 +1,168 @@
+  donor-service:
+    build:
+      context: ./services/donor-management-service
+      dockerfile: Dockerfile
+    container_name: lifeflow-donor-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lifeflow_donors
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-lifeflow}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-dev_password}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_REDIS_HOST: redis
+      SERVER_PORT: 8002
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - lifeflow_network
+
+  inventory-service:
+    build:
+      context: ./services/inventory-blood-bank-service
+      dockerfile: Dockerfile
+    container_name: lifeflow-inventory-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lifeflow_inventory
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-lifeflow}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-dev_password}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_REDIS_HOST: redis
+      SERVER_PORT: 8003
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - lifeflow_network
+
+  request-service:
+    build:
+      context: ./services/request-emergency-service
+      dockerfile: Dockerfile
+    container_name: lifeflow-request-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lifeflow_requests
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-lifeflow}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-dev_password}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_REDIS_HOST: redis
+      SERVER_PORT: 8004
+    ports:
+      - "8004:8004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - lifeflow_network
+
+  geolocation-service:
+    build:
+      context: ./services/geolocation-logistics-service
+      dockerfile: Dockerfile
+    container_name: lifeflow-geolocation-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lifeflow_geolocation
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-lifeflow}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-dev_password}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_REDIS_HOST: redis
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-dev_key}
+      SERVER_PORT: 8005
+    ports:
+      - "8005:8005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - lifeflow_network
+
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    container_name: lifeflow-notification-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lifeflow_notifications
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-lifeflow}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-dev_password}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_MAIL_HOST: mailhog
+      SPRING_MAIL_PORT: 1025
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-dev_sid}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-dev_token}
+      SERVER_PORT: 8006
+    ports:
+      - "8006:8006"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    networks:
+      - lifeflow_network
+
+  camp-service:
+    build:
+      context: ./services/camp-event-service
+      dockerfile: Dockerfile
+    container_name: lifeflow-camp-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lifeflow_camps
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-lifeflow}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-dev_password}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_REDIS_HOST: redis
+      SERVER_PORT: 8007
+    ports:
+      - "8007:8007"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - lifeflow_network
+
+  analytics-service:
+    build:
+      context: ./services/analytics-gamification-service
+      dockerfile: Dockerfile
+    container_name: lifeflow-analytics-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lifeflow_analytics
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-lifeflow}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-dev_password}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_REDIS_HOST: redis
+      SERVER_PORT: 8008
+    ports:
+      - "8008:8008"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - lifeflow_network
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+  redis_data:
+
+networks:
+  lifeflow_network:
+    driver: bridge

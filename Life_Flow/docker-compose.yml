@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  notification-service:
+    build:
+      context: ./lifeflow-notification-service
+      dockerfile: Dockerfile
+    container_name: lifeflow-notification-service
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgresql:5432/lifeflow_notifications
+      SPRING_DATASOURCE_USERNAME: lifeflow
+      SPRING_DATASOURCE_PASSWORD: lifeflow_secure_pass
+      SPRING_DATA_MONGODB_URI: mongodb://lifeflow:lifeflow_secure_pass@mongodb:27017/lifeflow_notifications
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+    ports:
+      - "3006:3006"
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+    networks:
+      - lifeflow-network
+
+  analytics-service:
+    build:
+      context: ./lifeflow-analytics-service
+      dockerfile: Dockerfile
+    container_name: lifeflow-analytics-service
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgresql:5432/lifeflow_analytics
+      SPRING_DATASOURCE_USERNAME: lifeflow
+      SPRING_DATASOURCE_PASSWORD: lifeflow_secure_pass
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+    ports:
+      - "3007:3007"
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - lifeflow-network
+
+  # Service Discovery
+  eureka-server:
+    build:
+      context: ./infrastructure/eureka
+      dockerfile: Dockerfile
+    container_name: lifeflow-eureka
+    environment:
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: 'true'
+      EUREKA_CLIENT_REGISTERWITEUREKA: 'false'
+      EUREKA_CLIENT_FETCHREGISTRY: 'false'
+    ports:
+      - "8761:8761"
+    networks:
+      - lifeflow-network
+
+  # Monitoring Stack
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: lifeflow-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - lifeflow-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: lifeflow-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+      GF_SECURITY_ADMIN_USER: admin
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - lifeflow-network
+
+networks:
+  lifeflow-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  mongodb_data:
+  redis_data:
+  rabbitmq_data:
+  prometheus_data:
+  grafana_data:

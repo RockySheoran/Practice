@@ -1,26 +1,33 @@
-# LifeFlow - API Specifications
+# LifeFlow - Comprehensive API Specifications
 
 ## API Design Principles
 
 ### RESTful Design
-- Resource-based URLs
-- HTTP methods for operations (GET, POST, PUT, DELETE)
-- Stateless communication
-- Consistent response formats
+- Resource-based URLs with clear hierarchies
+- HTTP methods for operations (GET, POST, PUT, PATCH, DELETE)
+- Stateless communication with JWT tokens
+- Consistent response formats across all services
+- HATEOAS (Hypermedia as the Engine of Application State) support
 
 ### API Versioning
-- URL path versioning: `/api/v1/`
-- Backward compatibility maintained
-- Deprecation notices for old versions
+- URL path versioning: `/api/v1/`, `/api/v2/`
+- Backward compatibility maintained for at least 2 major versions
+- Deprecation notices with 6-month advance warning
+- Version-specific documentation and SDKs
 
-### Response Format
+### Standard Response Format
 ```json
 {
   "success": true,
   "data": {},
   "message": "Operation completed successfully",
   "timestamp": "2024-01-15T10:30:00Z",
-  "requestId": "uuid-here"
+  "requestId": "req_123456789",
+  "version": "v1",
+  "links": {
+    "self": "/api/v1/resource/123",
+    "related": "/api/v1/resource/123/related"
+  }
 }
 ```
 
@@ -30,31 +37,144 @@
   "success": false,
   "error": {
     "code": "VALIDATION_ERROR",
-    "message": "Invalid input data",
+    "message": "Invalid input data provided",
     "details": [
       {
         "field": "bloodType",
-        "message": "Blood type is required"
+        "message": "Blood type is required and must be one of: A_POSITIVE, A_NEGATIVE, B_POSITIVE, B_NEGATIVE, AB_POSITIVE, AB_NEGATIVE, O_POSITIVE, O_NEGATIVE",
+        "rejectedValue": "AB+"
       }
-    ]
+    ],
+    "documentation": "https://docs.lifeflow.com/errors/validation-error"
   },
   "timestamp": "2024-01-15T10:30:00Z",
-  "requestId": "uuid-here"
+  "requestId": "req_123456789",
+  "path": "/api/v1/donors/register"
 }
 ```
+
+### HTTP Status Codes
+
+#### Success Codes
+- `200 OK` - Successful GET, PUT, PATCH requests
+- `201 Created` - Successful POST requests with resource creation
+- `202 Accepted` - Request accepted for asynchronous processing
+- `204 No Content` - Successful DELETE requests or updates with no response body
+
+#### Client Error Codes
+- `400 Bad Request` - Invalid request syntax or data
+- `401 Unauthorized` - Authentication required or invalid credentials
+- `403 Forbidden` - Insufficient permissions for the requested operation
+- `404 Not Found` - Requested resource does not exist
+- `405 Method Not Allowed` - HTTP method not supported for this endpoint
+- `409 Conflict` - Resource conflict (e.g., duplicate email)
+- `422 Unprocessable Entity` - Valid syntax but semantic validation errors
+- `429 Too Many Requests` - Rate limit exceeded
+
+#### Server Error Codes
+- `500 Internal Server Error` - Unexpected server error
+- `502 Bad Gateway` - Upstream service unavailable
+- `503 Service Unavailable` - Service temporarily unavailable
+- `504 Gateway Timeout` - Upstream service timeout
 
 ## API Gateway Endpoints
 
 **Base URL**: `https://api.lifeflow.com/api/v1`
 
-### Authentication Endpoints
+### Authentication & Authorization
+
+#### Authentication Endpoints
+```http
+POST   /auth/register                    # User registration
+POST   /auth/login                       # User login
+POST   /auth/refresh                     # Refresh access token
+POST   /auth/logout                      # User logout
+POST   /auth/forgot-password             # Request password reset
+POST   /auth/reset-password              # Reset password with token
+POST   /auth/verify-email                # Verify email address
+POST   /auth/resend-verification         # Resend verification email
+POST   /auth/change-password             # Change password (authenticated)
+POST   /auth/enable-2fa                  # Enable two-factor authentication
+POST   /auth/disable-2fa                 # Disable two-factor authentication
+POST   /auth/verify-2fa                  # Verify 2FA token
 ```
-POST   /auth/login
-POST   /auth/register
-POST   /auth/refresh
-POST   /auth/logout
-POST   /auth/forgot-password
-POST   /auth/reset-password
+
+#### Example: User Registration
+```http
+POST /api/v1/auth/register
+Content-Type: application/json
+
+{
+  "firstName": "John",
+  "lastName": "Doe",
+  "email": "john.doe@example.com",
+  "phoneNumber": "+91-9876543210",
+  "password": "SecurePassword123!",
+  "dateOfBirth": "1990-05-15",
+  "gender": "MALE",
+  "role": "DONOR",
+  "acceptTerms": true,
+  "acceptPrivacyPolicy": true
+}
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "userId": "usr_123456789",
+    "email": "john.doe@example.com",
+    "firstName": "John",
+    "lastName": "Doe",
+    "role": "DONOR",
+    "isVerified": false,
+    "verificationEmailSent": true
+  },
+  "message": "Registration successful. Please check your email for verification.",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "requestId": "req_reg_123456"
+}
+```
+
+#### Example: User Login
+```http
+POST /api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "john.doe@example.com",
+  "password": "SecurePassword123!",
+  "rememberMe": true,
+  "deviceInfo": {
+    "deviceType": "WEB",
+    "browser": "Chrome",
+    "os": "Windows 10"
+  }
+}
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refreshToken": "rt_abcdef123456...",
+    "tokenType": "Bearer",
+    "expiresIn": 3600,
+    "user": {
+      "id": "usr_123456789",
+      "email": "john.doe@example.com",
+      "firstName": "John",
+      "lastName": "Doe",
+      "roles": ["DONOR"],
+      "permissions": ["donor:read", "donor:update", "request:read"],
+      "lastLoginAt": "2024-01-15T10:30:00Z"
+    }
+  },
+  "message": "Login successful",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "requestId": "req_login_123456"
+}
 ```
 
 ## Service-Specific API Endpoints

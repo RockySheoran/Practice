@@ -1,0 +1,443 @@
+version: '3.8'
+
+services:
+  # ===========================================
+  # DATABASES
+  # ===========================================
+  
+  # Identity Service Database
+  identity-db:
+    image: postgres:15-alpine
+    container_name: lifeflow-identity-db
+    environment:
+      POSTGRES_DB: lifeflow_identity
+      POSTGRES_USER: ${IDENTITY_DB_USER:-identity_user}
+      POSTGRES_PASSWORD: ${IDENTITY_DB_PASSWORD:-identity_pass}
+    ports:
+      - "5432:5432"
+    volumes:
+      - identity_db_data:/var/lib/postgresql/data
+      - ./database/init-scripts/identity-init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - lifeflow-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${IDENTITY_DB_USER:-identity_user} -d lifeflow_identity"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Donor Service Database
+  donor-db:
+    image: postgres:15-alpine
+    container_name: lifeflow-donor-db
+    environment:
+      POSTGRES_DB: lifeflow_donor
+      POSTGRES_USER: ${DONOR_DB_USER:-donor_user}
+      POSTGRES_PASSWORD: ${DONOR_DB_PASSWORD:-donor_pass}
+    ports:
+      - "5433:5432"
+    volumes:
+      - donor_db_data:/var/lib/postgresql/data
+      - ./database/init-scripts/donor-init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - lifeflow-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DONOR_DB_USER:-donor_user} -d lifeflow_donor"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Hospital Service Database
+  hospital-db:
+    image: postgres:15-alpine
+    container_name: lifeflow-hospital-db
+    environment:
+      POSTGRES_DB: lifeflow_hospital
+      POSTGRES_USER: ${HOSPITAL_DB_USER:-hospital_user}
+      POSTGRES_PASSWORD: ${HOSPITAL_DB_PASSWORD:-hospital_pass}
+    ports:
+      - "5434:5432"
+    volumes:
+      - hospital_db_data:/var/lib/postgresql/data
+      - ./database/init-scripts/hospital-init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - lifeflow-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${HOSPITAL_DB_USER:-hospital_user} -d lifeflow_hospital"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Inventory Service Database
+  inventory-db:
+    image: postgres:15-alpine
+    container_name: lifeflow-inventory-db
+    environment:
+      POSTGRES_DB: lifeflow_inventory
+      POSTGRES_USER: ${INVENTORY_DB_USER:-inventory_user}
+      POSTGRES_PASSWORD: ${INVENTORY_DB_PASSWORD:-inventory_pass}
+    ports:
+      - "5435:5432"
+    volumes:
+      - inventory_db_data:/var/lib/postgresql/data
+      - ./database/init-scripts/inventory-init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - lifeflow-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${INVENTORY_DB_USER:-inventory_user} -d lifeflow_inventory"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Request Service Database
+  request-db:
+    image: postgres:15-alpine
+    container_name: lifeflow-request-db
+    environment:
+      POSTGRES_DB: lifeflow_request
+      POSTGRES_USER: ${REQUEST_DB_USER:-request_user}
+      POSTGRES_PASSWORD: ${REQUEST_DB_PASSWORD:-request_pass}
+    ports:
+      - "5436:5432"
+    volumes:
+      - request_db_data:/var/lib/postgresql/data
+      - ./database/init-scripts/request-init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - lifeflow-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${REQUEST_DB_USER:-request_user} -d lifeflow_request"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===========================================
+  # INFRASTRUCTURE SERVICES
+  # ===========================================
+
+  # Redis for Caching and Session Storage
+  redis:
+    image: redis:7-alpine
+    container_name: lifeflow-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - lifeflow-network
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_pass}
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Apache Kafka for Event Streaming
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: lifeflow-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - lifeflow-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: lifeflow-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    networks:
+      - lifeflow-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Eureka Service Discovery
+  eureka-server:
+    image: steeltoeoss/eureka-server:3.1.0
+    container_name: lifeflow-eureka
+    ports:
+      - "8761:8761"
+    environment:
+      EUREKA_CLIENT_REGISTER_WITH_EUREKA: false
+      EUREKA_CLIENT_FETCH_REGISTRY: false
+    networks:
+      - lifeflow-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===========================================
+  # MICROSERVICES
+  # ===========================================
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: lifeflow-api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_pass}
+    depends_on:
+      - eureka-server
+      - redis
+    networks:
+      - lifeflow-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Identity Service
+  identity-service:
+    build:
+      context: ./services/identity-service
+      dockerfile: Dockerfile
+    container_name: lifeflow-identity-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://identity-db:5432/lifeflow_identity
+      SPRING_DATASOURCE_USERNAME: ${IDENTITY_DB_USER:-identity_user}
+      SPRING_DATASOURCE_PASSWORD: ${IDENTITY_DB_PASSWORD:-identity_pass}
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_pass}
+      JWT_SECRET: ${JWT_SECRET:-your-secret-key}
+    depends_on:
+      - identity-db
+      - eureka-server
+      - kafka
+      - redis
+    networks:
+      - lifeflow-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Donor Service
+  donor-service:
+    build:
+      context: ./services/donor-service
+      dockerfile: Dockerfile
+    container_name: lifeflow-donor-service
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://donor-db:5432/lifeflow_donor
+      SPRING_DATASOURCE_USERNAME: ${DONOR_DB_USER:-donor_user}
+      SPRING_DATASOURCE_PASSWORD: ${DONOR_DB_PASSWORD:-donor_pass}
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_pass}
+    depends_on:
+      - donor-db
+      - eureka-server
+      - kafka
+      - redis
+    networks:
+      - lifeflow-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Hospital Service
+  hospital-service:
+    build:
+      context: ./services/hospital-service
+      dockerfile: Dockerfile
+    container_name: lifeflow-hospital-service
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://hospital-db:5432/lifeflow_hospital
+      SPRING_DATASOURCE_USERNAME: ${HOSPITAL_DB_USER:-hospital_user}
+      SPRING_DATASOURCE_PASSWORD: ${HOSPITAL_DB_PASSWORD:-hospital_pass}
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_pass}
+    depends_on:
+      - hospital-db
+      - eureka-server
+      - kafka
+      - redis
+    networks:
+      - lifeflow-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Inventory Service
+  inventory-service:
+    build:
+      context: ./services/inventory-service
+      dockerfile: Dockerfile
+    container_name: lifeflow-inventory-service
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://inventory-db:5432/lifeflow_inventory
+      SPRING_DATASOURCE_USERNAME: ${INVENTORY_DB_USER:-inventory_user}
+      SPRING_DATASOURCE_PASSWORD: ${INVENTORY_DB_PASSWORD:-inventory_pass}
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_pass}
+    depends_on:
+      - inventory-db
+      - eureka-server
+      - kafka
+      - redis
+    networks:
+      - lifeflow-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Request Service
+  request-service:
+    build:
+      context: ./services/request-service
+      dockerfile: Dockerfile
+    container_name: lifeflow-request-service
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://request-db:5432/lifeflow_request
+      SPRING_DATASOURCE_USERNAME: ${REQUEST_DB_USER:-request_user}
+      SPRING_DATASOURCE_PASSWORD: ${REQUEST_DB_PASSWORD:-request_pass}
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_pass}
+    depends_on:
+      - request-db
+      - eureka-server
+      - kafka
+      - redis
+    networks:
+      - lifeflow-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===========================================
+  # MONITORING & OBSERVABILITY
+  # ===========================================
+
+  # Zipkin for Distributed Tracing
+  zipkin:
+    image: openzipkin/zipkin:2.24
+    container_name: lifeflow-zipkin
+    ports:
+      - "9411:9411"
+    networks:
+      - lifeflow-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9411/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Prometheus for Metrics Collection
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: lifeflow-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - lifeflow-network
+
+  # Grafana for Visualization
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: lifeflow-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - lifeflow-network
+    depends_on:
+      - prometheus
+
+# ===========================================
+# NETWORKS
+# ===========================================
+networks:
+  lifeflow-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# ===========================================
+# VOLUMES
+# ===========================================
+volumes:
+  # Database Volumes
+  identity_db_data:
+  donor_db_data:
+  hospital_db_data:
+  inventory_db_data:
+  request_db_data:
+  
+  # Infrastructure Volumes
+  redis_data:
+  
+  # Monitoring Volumes
+  prometheus_data:
+  grafana_data:
